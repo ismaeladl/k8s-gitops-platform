@@ -1,0 +1,21 @@
+# ArgoCD Project for Snake App
+# This project defines the boundaries for ArgoCD applications managing Snake workloads.
+# All resources and namespaces are allowed for demonstration purposes.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: snake-project
+  namespace: argocd
+spec:
+  description: Project ArgoCD for Snake ArgoApp
+  sourceRepos:
+    - https://github.com/ismaeladl/k8s-gitops-platform
+  destinations:
+    - namespace: '*'
+      server: https://kubernetes.default.svc # Deployed in cluster where ArgoCD runs
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

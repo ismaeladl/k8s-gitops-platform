@@ -1,0 +1,46 @@
+# Snake Test Application
+# Watches the helm/ folder in the repo and deploys the Snake workload for the test environment.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: snake-test
+  namespace: argocd
+  annotations:
+    description: "ArgoCD scoped for snake-app-demo"
+spec:
+  project: snake-project
+  source:
+  # Repository to watch
+    repoURL: https://github.com/ismaeladl/k8s-gitops-platform
+    targetRevision: main
+    # Path to watch inside the repository
+    path: "helm/"
+
+    # If using with Helm for scheduling
+    helm:
+      valueFiles:
+      # Specify main value file
+        - values.yaml 
+      # Specify overriding value file
+        - values/values-test.yaml
+
+      # Example with parameters to make it dynamic
+      # Refers to directory "dynamic_helm_example"
+      # parameters:
+      #   - name: env
+      #     value: prod
+
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: test
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RetryOnError=true
+      - Force=true
+      - DryRunOnMissingResource=true
