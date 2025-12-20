@@ -1,0 +1,44 @@
+# HELM VARIABLES
+{{ $env := .Values.env }}           # Target environment (e.g., test, prod)
+{{ $image := .Values.image }}       # Image information (repo, name, tag)
+{{ $meta := .Values.metadata }}     # Application metadata
+{{ $spec := .Values.spec }}         # Application spec
+# SHORTCUT AND REUSABLE VARIABLES
+{{ $name := $meta.name }}           # Application name
+{{ $namespace := $meta.namespace }} # Kubernetes namespace
+{{ $ingress := $spec.ingress }}     # Ingress-specific parameters
+{{ $svc := $spec.svc }}             # Service-specific parameters
+
+# HELM TEMPLATE: DEPLOYMENT
+# NOTE: "prod" values are purely demonstrative. 
+#       The image does not support full prod functionality.
+#       They show what (and why) could be configured in a real prod app.
+{{- if eq $env "prod" }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-%s-ingress" $name $env }}
+  namespace: {{ $namespace }}
+  annotations:
+    {{- range $k, $v := $ingress.annotations }}
+      {{ $k }}: {{ $v | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $ingress.class }}
+  rules:
+    - host: {{ printf "%s.%s" $env $ingress.domain }}
+      http:
+        paths:
+          - path: {{ $ingress.path }}
+            pathType: {{ $ingress.pathType }}
+            backend:
+              service:
+                name: {{ printf "%s-%s-svc" $name $env}}
+                port:
+                  number: {{ $svc.svcPort }}
+
+  tls:
+    - hosts:
+        - {{ printf "%s.%s" $env $ingress.domain }}
+      secretName: {{ printf "%s-%s-tls" $name $env }}
+{{- end }}

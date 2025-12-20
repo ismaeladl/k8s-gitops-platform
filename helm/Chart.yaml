@@ -1,0 +1,10 @@
+apiVersion: v2
+name: snake-app
+description: "Snake demo app exposed by Nginx"
+type: "application"
+version: 1.0.0
+keywords:
+  - snake-app
+  - nginx
+sources:
+  - https://github.com/ismaeladl/cicd-github-actions

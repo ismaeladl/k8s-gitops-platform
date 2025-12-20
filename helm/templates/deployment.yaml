@@ -1,0 +1,183 @@
+# HELM VARIABLES
+{{ $env := .Values.env }}           # Target environment (e.g., test, prod)
+{{ $image := .Values.image }}       # Image information (repo, name, tag)
+{{ $meta := .Values.metadata }}     # Application metadata
+{{ $spec := .Values.spec }}         # Application spec
+# SHORTCUT AND REUSABLE VARIABLES
+{{ $name := $meta.name }}           # Application name
+{{ $namespace := $meta.namespace }} # Kubernetes namespace
+{{ $deploy := $spec.deploy }}       # Deployment-specific parameters
+{{ $pod := $deploy.pod }}           # Pod-specific parameters
+{{ $svc := $spec.svc }}             # Service-specific parameters
+
+# HELM TEMPLATE: DEPLOYMENT
+# NOTE: "prod" values are purely demonstrative. 
+#       The image does not support full prod functionality.
+#       They show what (and why) could be configured in a real prod app.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-%s-deploy" $name $env }}
+  namespace: {{ $namespace }}
+  labels:
+    app: {{ $name }}
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/component: {{ $meta.tier }}
+    app.kubernetes.io/environment: {{ $env }}
+    app.kubernetes.io/instance: {{ printf "%s-%s" $name $env }}
+  annotations:
+    description: "Deployment manifest in order to deploy {{ $name }}-app demo in {{ $env }}"
+spec: 
+  replicas: {{ $deploy.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+
+  {{- if eq $env "prod" }}
+  strategy:
+    # RollingUpdate strategy defined here to maintain availability during update
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: {{ $deploy.rolling.surge }}
+      # Ensures minimum pods remain available during update
+      minUnavailable: {{ $deploy.rolling.unavailable }}
+  {{- end }}
+
+  minReadySeconds: {{ $deploy.readySec }}
+
+  # HistoryLimit keep tracking of ReplicaSets
+  revisionHistoryLimit: {{ $deploy.history }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+        env: {{ $env }}
+      annotations:
+        purpose: "Pod designed for {{ $name }}"
+    spec:
+    # Minimal functional template for demo, prod-specific parameters follow
+      containers:
+        - name: {{ $name }}
+          image: "{{ printf "%s/%s:%s" $image.repo $image.name $image.ver }}"
+          imagePullPolicy: {{ $image.pullPol }}
+          ports:
+            - containerPort: {{ $pod.cntPort }}
+              protocol: TCP
+
+          # Starting here possible parameters for a production environment
+          # First containers scoped possible parameters (below pod scoped)
+          {{- if eq $env "prod" }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add:
+                - {{ $pod.secCon.addcap }}
+          volumeMounts:
+            - name: {{ $deploy.volumes.config.volName }}
+              mountPath: {{ $deploy.volumes.config.mountPath }}
+              readOnly: true
+            - name: {{ $deploy.volumes.secret.volName }}
+              mountPath: {{ $deploy.volumes.secret.mountPath }}
+              readOnly: true   
+
+          resources:
+          # Resources can also be managed via LimitRange or Kyverno
+            requests:
+              cpu: {{ $pod.reqCpu }}
+              memory: {{ $pod.reqMem }}
+            limits:
+              cpu: {{ $pod.limCpu }}
+              memory: {{ $pod.limMem }}
+
+          # Probes are defined here to ensure app stays alive
+          startupProbe:
+            httpGet:
+              path: {{ $pod.probe.start.path }}
+              port: {{ $pod.cntPort }}
+            initialDelaySeconds: {{ $pod.probe.start.initDelay }}
+            periodSeconds: {{ $pod.probe.start.periodSec }}
+            timeoutSeconds: {{ $pod.probe.start.timeoutSec }}
+          readinessProbe:
+            httpGet:
+              path: {{ $pod.probe.ready.path }}
+              port: {{ $pod.cntPort }}
+            initialDelaySeconds: {{ $pod.probe.ready.initDelay }}
+            periodSeconds: {{ $pod.probe.ready.periodSec }}
+            timeoutSeconds: {{ $pod.probe.ready.timeoutSec }}
+            successThreshold: {{ $pod.probe.ready.successThreshold }}
+            failureThreshold: {{ $pod.probe.ready.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ $pod.probe.health.path }}
+              port: {{ $pod.cntPort }}
+            initialDelaySeconds: {{ $pod.probe.health.initDelay }}
+            periodSeconds: {{ $pod.probe.health.periodSec }}
+            timeoutSeconds: {{ $pod.probe.health.timeoutSec }}
+            successThreshold: {{ $pod.probe.health.successThreshold }}
+            failureThreshold: {{ $pod.probe.health.failureThreshold }}
+          lifecycle:
+          # NOTE: commands are placeholders only
+            postStart:
+              exec:
+                command: ["/bin/sh","-c","echo 'App start...' > /app/start.log"]
+            preStop:
+              exec:
+                command: ["/bin/sh","-c","sleep 10"]
+          {{- end }}
+      {{- if eq $env "prod" }}
+
+      # Pod scoped possible parameters
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $deploy.secCon.runUser }}
+        fsGroup: {{ $deploy.secCon.runGrp }}
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: {{ $image.secret }}
+
+      # SA defined here to give the pod its identity
+      serviceAccountName: {{ printf "%s-sa" $name }}
+
+      # Useful to prioritize pods when resources are constrained
+      priorityClassName: {{ printf "%s-priority" $pod.priority }}
+
+      # NOTE: Volumes can be set as range also
+      volumes:
+        - name: {{ $deploy.volumes.config.volName }}
+          configMap:
+            name: {{ $deploy.volumes.config.configName }}
+        - name: {{ $deploy.volumes.secret.volName }}
+          secret:
+            name: {{ $deploy.volumes.secret.secretName }}
+      initContainers:
+      # Same as lifecycle command are placeholders example only
+        - name: init
+          image: busybox
+          command: ["sh","-c","echo Hi from init"]
+          # NOTE : initContainers might contain as much field as regular container
+      
+      # Must not conflict with lifecycle.preStop
+      terminationGracePeriodSeconds: 30
+
+      # Affinity is placement rules defined here to balance across nodes
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: {{ $name }}
+              topologyKey: "kubernetes.io/hostname"
+
+      # Spread constraints are defined here to evenly distribute pods
+      topologySpreadConstraints:
+        - maxSkew: {{ $deploy.maxSkew }}
+          whenUnsatisfiable: {{ $deploy.tscWhen }}
+          labelSelector:
+            matchLabels:
+              app: {{ $name }}
+          topologyKey: "kubernetes.io/hostname"            
+      {{- end }}

@@ -1,0 +1,15 @@
+metadata:
+  name: snake
+  tier: frontend
+image:
+  name: snake
+  repo: ghcr.io/ismaeladl
+  ver: "v1.0.0"
+  pullPol: IfNotPresent
+spec:
+  deploy:
+    readySec: 5
+    history: 10
+    pod:
+      priority: high
+

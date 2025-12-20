@@ -1,0 +1,36 @@
+env: test
+
+apps:
+  common: 
+    metadata:
+      name: snake
+    domain: snake.loc
+    spec:
+      ingress:
+        class: nginx
+        path: /
+        pathType: Prefix    
+  prod:
+    metadata:
+      namespace: prod
+    spec:
+      svc:
+        svcPort: 443
+      ingress:
+        annotations:
+          nginx.ingress.kubernetes.io/rewrite-target: /
+          nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+          nginx.ingress.kubernetes.io/enable-cors: "true"
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+  test:
+    metadata:
+      namespace: test
+    spec:
+      svc:
+        svcPort: 80
+      ingress:
+        annotations:
+          nginx.ingress.kubernetes.io/rewrite-target: /
+          nginx.ingress.kubernetes.io/use-forwarded-headers: "true"

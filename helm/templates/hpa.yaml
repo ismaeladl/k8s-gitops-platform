@@ -1,0 +1,76 @@
+# HELM VARIABLES
+{{ $env := .Values.env }}           # Target environment (e.g., test, prod)
+{{ $image := .Values.image }}       # Image information (repo, name, tag)
+{{ $meta := .Values.metadata }}     # Application metadata
+{{ $spec := .Values.spec }}         # Application spec
+# SHORTCUT AND REUSABLE VARIABLES
+{{ $name := $meta.name }}           # Application name
+{{ $namespace := $meta.namespace }} # Kubernetes namespace
+{{ $hpa := $spec.hpa }}             # HPA-specific parameters
+
+# HELM TEMPLATE: HPA
+# NOTE: "prod" values are purely demonstrative. 
+#       The image does not support full prod functionality.
+#       They show what (and why) could be configured in a real prod app.
+{{- if eq $env "prod" }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ printf "%s-%s-hpa" $name $env }}
+  namespace: {{ $namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ printf "%s-%s-deploy" $name $env }}
+
+  minReplicas: {{ $hpa.minReplicas }}
+  maxReplicas: {{ $hpa.maxReplicas }}
+
+  metrics:
+  {{- range $hpa.metrics }}
+    - type: Resource
+      resource:
+        name: {{ .resource }}
+        target:
+          type: {{ .type }}
+          averageUtilization: {{ .averageUtilization }}
+  {{- end }}
+
+  # Behavior is defined here to control scaling logic, to avoid triggering alerts on transient spikes
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ $hpa.behavior.up.winSec }}
+      {{- if $hpa.behavior.up.multipol.enabled }}
+      selectPolicy: {{ $hpa.behavior.up.multipol.selectPol }}
+      policies:
+      {{- range $hpa.behavior.up.multipol.policies }}
+        - type: {{ .type }}
+          value: {{ .value }}
+          periodSeconds: {{ .periodSec }}
+      {{- end }}
+      {{- else }}
+      policies:
+        - type: {{ $hpa.behavior.up.policy.type }}
+          value: {{ $hpa.behavior.up.policy.value }}
+          periodSeconds: {{ $hpa.behavior.up.policy.periodSec }}
+      {{- end }}
+
+    scaleDown:
+      stabilizationWindowSeconds: {{ $hpa.behavior.down.winSec }}
+      # NOTE: multiple policies are shown as an example
+      {{- if $hpa.behavior.down.multipol.enabled }}
+      selectPolicy: {{ $hpa.behavior.down.multipol.selectPol }}      
+      policies:
+      {{- range $hpa.behavior.down.multipol.policies }}
+        - type: {{ .type }}
+          value: {{ .value }}
+          periodSeconds: {{ .periodSec }}
+      {{- end }}
+      {{- else }}
+      policies:
+        - type: {{ $hpa.behavior.down.policy.type }}
+          value: {{ $hpa.behavior.down.policy.value }}
+          periodSeconds: {{ $hpa.behavior.down.policy.periodSec }}
+      {{- end }}
+{{- end }}

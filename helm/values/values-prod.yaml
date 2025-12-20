@@ -1,0 +1,101 @@
+env: prod
+
+metadata:
+  namespace: prod
+image:
+  secret: github-secret
+spec:
+  deploy:
+    replicas: 2
+    rolling:
+      surge: 1
+      unavailable: 1
+    maxSkew: 2
+    tscWhen: ScheduleAnyway
+    volumes:
+      config:
+        volName: volume-config
+        configName: app-config
+        mountPath: /app/config
+      secret:
+        volName: volume-secret
+        secretName: secret-config
+        mountPath: /app/secret
+    secCon:
+      runUser: 1000
+      runGrp: 2000
+    pod:
+      cntPort: 443
+      secCon:
+        addcap: "NET_BIND_SERVICE"
+      reqCpu: "512m"
+      reqMem: "512Mi"
+      limCpu: "1"
+      limMem: "1Gi"
+      probe:
+        start:
+          path: /start
+          initDelay: 5
+          periodSec: 5
+          timeoutSec: 5
+          successThreshold: 1
+          failureThreshold: 1
+        health:
+          path: /health
+          initDelay: 5
+          periodSec: 5
+          timeoutSec: 5
+          successThreshold: 1
+          failureThreshold: 1        
+        ready:
+          path: /ready
+          initDelay: 5
+          periodSec: 5
+          timeoutSec: 5
+          successThreshold: 1
+          failureThreshold: 1        
+  svc:
+    svcType: LoadBalancer
+    svcPort: 443
+  ingress:
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"    
+    class: nginx
+    domain: snake.loc
+    path: /
+    pathType: Prefix    
+  hpa:
+    minReplicas: 2
+    maxReplicas: 4
+    metrics:
+      - resource: cpu
+        type: Utilization
+        averageUtilization: 50
+      - resource: memory
+        type: Utilization
+        averageUtilization: 50
+    behavior:
+      up:
+        winSec: 120
+        multipol: 
+          enabled: false
+        policy:
+          type: Percent
+          value: 50
+          periodSec: 60
+      down:
+        winSec: 300
+        multipol:
+          enabled: true
+          selectPol: Max
+          policies:
+            - type: Percent
+              value: 100
+              periodSec: 120 
+            - type: Pods
+              value: 2
+              periodSec: 60             

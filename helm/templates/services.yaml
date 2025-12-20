@@ -1,0 +1,28 @@
+# HELM VARIABLES
+{{ $env := .Values.env }}           # Target environment (e.g., test, prod)
+{{ $image := .Values.image }}       # Image information (repo, name, tag)
+{{ $meta := .Values.metadata }}     # Application metadata
+{{ $spec := .Values.spec }}         # Application spec
+# SHORTCUT AND REUSABLE VARIABLES
+{{ $name := $meta.name }}           # Application name
+{{ $namespace := $meta.namespace }} # Kubernetes namespace
+{{ $svc := $spec.svc }}             # Service-specific parameters
+{{ $deploy := $spec.deploy }}       # Deployment-specific parameters
+{{ $pod := $deploy.pod }}           # Pod-specific parameters
+
+# HELM TEMPLATE: SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-%s-svc" $name $env }}
+  namespace: {{ $namespace }}
+spec:
+  selector:
+    app: {{ $name }}
+  type: {{ $svc.svcType }}
+  ports:
+    - port: {{ $svc.svcPort }}
+      targetPort: {{ $pod.cntPort }}
+      {{- if eq $env "test" }}
+      nodePort: {{ $svc.nodePort }}
+      {{- end }}

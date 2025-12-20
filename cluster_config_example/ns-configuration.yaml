@@ -1,0 +1,124 @@
+# This manifest provides example namespace-scoped-level configurations that could support a production workload.
+# It complements the production workload defined in the Helm templates, showcasing namespace, quotas,
+# limits, network policies, and PodDisruptionBudgets to maintain availability and enforce security.
+
+# Note: "namespace.yaml" must be applied first to avoid namespace missing errors
+
+# ResourceQuota defined to control resource usage within the namespace,
+# preventing resource exhaustion and ensuring availability
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: prod-quota
+  namespace: prod
+spec:
+  hard:
+    cpu: "4"
+    memory: "4Gi"
+    # Values deliberately set higher to avoid collisions during rolling updates
+    pods: 4
+    services: 2
+---
+
+# LimitRange defined to prevent pods from consuming all resources and
+# control burst limits
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: prod-limit
+  namespace: prod
+spec:
+  limits:
+    - type: Container
+      min:
+        cpu: "250m"
+        memory: "256Mi"
+      max:
+        cpu: "2"
+        memory: "2Gi"
+      default:
+        cpu: "1"
+        memory: "1Gi"
+      defaultRequest:
+        cpu: "500m"
+        memory: "512Mi"
+      maxLimitRequestRatio:
+        cpu: "2"
+        memory: "2"
+---
+
+# NetworkPolicy defined to control ingress and egress for pods.
+# This basic example restricts traffic to specific subnets but can be
+# adapted for back-to-front communication, NVAs, or appliances such as Vault or DB.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prod-netpol
+  namespace: prod
+spec:
+  podSelector:
+    matchLabels:
+      app: snake
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              env: prod
+
+        - ipBlock:
+            cidr: 10.10.0.0/16
+            except:
+              - 10.10.100.0/24
+              - 10.10.200.0/24
+
+        - ipBlock:
+            cidr: 192.168.1.0/24
+
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+        - port: 8000
+          protocol: TCP
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              env: prod
+
+        - ipBlock:
+            cidr: 10.10.0.0/16
+            except:
+              - 10.10.100.0/24
+              - 10.10.200.0/24
+
+        - ipBlock:
+            cidr: 192.168.1.0/24
+
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+        - port: 8000
+          protocol: TCP            
+---
+
+# PodDisruptionBudget defined to prevent total pod downtime during rolling updates.
+# Works together with affinity and topologySpreadConstraints defined in workloads.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: snake-pdb
+  namespace: prod
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: snake

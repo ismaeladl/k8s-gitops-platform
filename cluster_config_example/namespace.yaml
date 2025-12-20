@@ -1,0 +1,20 @@
+# This file is used to setup Namespace to see namespace configuration
+# Check "ns-configuration.yaml" file
+
+# Namespace defined for PSA enforcement and label-based organization
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    app: snake
+    env: prod
+    # Additional labels can be used for cost allocation, policy selection,
+    # or GitOps targeting.
+  annotations:
+    purpose: "Namespace hosting frontend application workloads"
+
+    # Enforce a restricted security profile for all pods in this namespace.
+    pod-security.kubernetes.io/enforce: "restricted"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "baseline"

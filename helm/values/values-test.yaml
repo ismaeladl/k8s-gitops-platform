@@ -1,0 +1,18 @@
+# In real environment test value would've fewer values than prod 
+# but here only values necessary for demo are shown
+# To see possible values 
+# thank you to refer to values-test.yaml lcoated in parent directory
+
+env: test
+
+metadata:
+  namespace: test
+spec:
+  deploy:
+    replicas: 1
+    pod:
+      cntPort: 80  
+  svc:
+    svcType: NodePort
+    svcPort: 80
+    nodePort: 30080
