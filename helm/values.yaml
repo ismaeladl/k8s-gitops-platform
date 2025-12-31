@@ -4,7 +4,7 @@ metadata:
 image:
   name: snake
   repo: ghcr.io/ismaeladl
-  ver: bf6e605d3bf42cea23c3512f4888f4c22295d275
+  ver: 04f2ff5a064982f4fb8b4310dbd19c0611d55673
   pullPol: IfNotPresent
 spec:
   deploy:
